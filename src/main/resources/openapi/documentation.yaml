@@ -1,0 +1,233 @@
+openapi: "3.0.3"
+info:
+  title: TouranmentPilot API
+  description: |
+    Tournament bracket generator for racket sports (badminton, tennis, squash).
+    Supports single-elimination bracket generation with automatic round-robin seeding.
+  version: "1.0.0"
+  contact:
+    name: TouranmentPilot
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Players
+    description: Manage registered players
+  - name: Tournaments
+    description: Generate and view tournament brackets
+
+paths:
+  /players:
+    post:
+      tags: [Players]
+      summary: Register a new player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlayerRequest'
+            example:
+              name: "Lee Chong Wei"
+              skillLevel: "ADVANCED"
+      responses:
+        "201":
+          description: Player created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+    get:
+      tags: [Players]
+      summary: List all players
+      responses:
+        "200":
+          description: All registered players
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Player'
+
+  /players/{id}:
+    get:
+      tags: [Players]
+      summary: Get a player by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Player found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /tournaments/generate:
+    post:
+      tags: [Tournaments]
+      summary: Generate a single-elimination bracket
+      description: |
+        Creates a tournament and generates Round 1 matches.
+        **playerIds count must be a power of 2** (2, 4, 8, 16, 32…).
+        Players are randomly seeded into the bracket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateTournamentRequest'
+            example:
+              name: "Spring Badminton Open"
+              playerIds: [1, 2, 3, 4, 5, 6, 7, 8]
+      responses:
+        "201":
+          description: Tournament and bracket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BracketResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+
+  /tournaments/{id}/matches:
+    get:
+      tags: [Tournaments]
+      summary: Get bracket status for a tournament
+      description: Returns all matches grouped by round number.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Bracket with all rounds and matches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BracketResponse'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Player:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Lee Chong Wei"
+        skillLevel:
+          type: string
+          enum: [BEGINNER, INTERMEDIATE, ADVANCED]
+          example: "ADVANCED"
+
+    Tournament:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Spring Badminton Open"
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, COMPLETED]
+          example: "IN_PROGRESS"
+
+    Match:
+      type: object
+      properties:
+        id:
+          type: integer
+        tournamentId:
+          type: integer
+        player1Id:
+          type: integer
+        player1Name:
+          type: string
+        player2Id:
+          type: integer
+        player2Name:
+          type: string
+        round:
+          type: integer
+          description: "1 = first round, higher numbers = later rounds"
+        winnerId:
+          type: integer
+          nullable: true
+          description: "null until the match has been played"
+
+    CreatePlayerRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        skillLevel:
+          type: string
+          enum: [BEGINNER, INTERMEDIATE, ADVANCED]
+          default: BEGINNER
+
+    GenerateTournamentRequest:
+      type: object
+      required: [name, playerIds]
+      properties:
+        name:
+          type: string
+        playerIds:
+          type: array
+          items:
+            type: integer
+          description: "Must be a power of 2 (2, 4, 8, 16…)"
+
+    BracketResponse:
+      type: object
+      properties:
+        tournament:
+          $ref: '#/components/schemas/Tournament'
+        rounds:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/Match'
+          example:
+            "1": []
+            "2": []
+
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
